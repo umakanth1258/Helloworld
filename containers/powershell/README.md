@@ -8,6 +8,7 @@
 |----------|-------|
 | *Contributors* | The VS Code Team |
 | *Definition type* | Dockerfile |
+| *Published image* | mcr.microsoft.com/vscode/devcontainers/powershell |
 | *Languages, platforms* | PowerShell |
 
 ## Using this definition with an existing folder
