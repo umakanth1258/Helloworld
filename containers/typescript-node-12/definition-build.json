@@ -1,4 +1,5 @@
 {
+	"latest": true,
 	"build": {
 		"rootDistro": "debian",
 		"parent": "javascript-node-12",
@@ -17,6 +18,8 @@
 			"iproute2",
 			"procps",
 			"curl",
+			"openssh-client",
+			"less",
 			"wget",
 			"unzip",
 			"lsb-release",
