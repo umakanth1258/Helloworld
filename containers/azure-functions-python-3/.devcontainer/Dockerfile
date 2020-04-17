@@ -8,6 +8,16 @@ FROM mcr.microsoft.com/vscode/devcontainers/python:3.8
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
 
+# By default, only root can access the Docker socket 
+ARG ALIAS_DOCKER_WITH_SUDO=true
+
+# RC files to update with init scripts
+ARG RC_FILES="\
+    /root/.bashrc \
+    /home/${USERNAME}/.bashrc \
+    /root/.zshrc \
+    /home/${USERNAME}/.zshrc"
+
 # Configure apt and install packages
 RUN \
     #
@@ -24,6 +34,11 @@ RUN \
     && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
+    #
+    # [Optional] Alias docker to be 'sudo docker' so it works cleanly with the non-root user
+    && if [ "${ALIAS_DOCKER_WITH_SUDO}" = "true" ]; then \
+        echo "alias docker='sudo docker'" | tee -a $(echo ${RC_FILES}); \
+    fi \
     #
     # Clean up
     && apt-get autoremove -y \

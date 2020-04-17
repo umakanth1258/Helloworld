@@ -17,30 +17,18 @@ ARG USERNAME=vscode
 ARG USER_UID=1000
 ARG USER_GID=$USER_UID
 
-# Configure apt and install packages
-RUN apt-get update \
-    && apt-get -y install --no-install-recommends apt-utils dialog 2>&1 \
-    #
-    # Verify git, process tools installed
-    && apt-get -y install git openssh-client less iproute2 procps \
-    #
-    # Install Docker CE CLI
-    && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common lsb-release \
-    && curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | (OUT=$(apt-key add - 2>&1) || echo $OUT) \
-    && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
-    && apt-get update \
-    && apt-get install -y docker-ce-cli \
-    #
-    # Install kubectl
-    && curl -sSL -o /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
-    && chmod +x /usr/local/bin/kubectl \
-    #
-    # Install Helm
-    && curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash - \
-    #
-    # Copy localhost's ~/.kube/config file into the container and swap out localhost
-    # for host.docker.internal whenever a new shell starts to keep them in sync.
-    && echo '\n\
+# By default, only root can access the Docker socket 
+ARG ALIAS_DOCKER_WITH_SUDO=true
+
+# RC files to update with init scripts
+ARG RC_FILES="\
+    /root/.bashrc \
+    /home/${USERNAME}/.bashrc \
+    /root/.zshrc \
+    /home/${USERNAME}/.zshrc"
+
+# Init script to setup Kubernetes config / certs
+ARG RC_SNIPPET='\n\
         if [ "$SYNC_LOCALHOST_KUBECONFIG" == "true" ]; then\n\
             mkdir -p $HOME/.kube\n\
             cp -r $HOME/.kube-localhost/* $HOME/.kube\n\
@@ -55,8 +43,37 @@ RUN apt-get update \
                 cp -r $HOME/.minikube-localhost/client.key $HOME/.minikube\n\
                 sed -i -r "s|(\s*client-key:\s).*|\\1$HOME\/.minikube\/client.key|g" $HOME/.kube/config\n\
             fi\n\
-        fi' \
-        >> $HOME/.bashrc \
+        fi'
+
+# Configure apt and install packages
+RUN apt-get update \
+    && apt-get -y install --no-install-recommends apt-utils dialog 2>&1 \
+    #
+    # Verify git, process tools installed
+    && apt-get -y install git openssh-client less iproute2 procps \
+    #
+    # Install Docker CE CLI
+    && apt-get install -y apt-transport-https ca-certificates curl gnupg-agent software-properties-common lsb-release \
+    && curl -fsSL https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]')/gpg | (OUT=$(apt-key add - 2>&1) || echo $OUT) \
+    && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
+    && apt-get update \
+    && apt-get install -y docker-ce-cli \
+    #
+    # [Optional] Alias docker to be 'sudo docker' so it works cleanly with the non-root user
+    && if [ "${ALIAS_DOCKER_WITH_SUDO}" = "true" ]; then \
+        echo "alias docker='sudo docker'" | tee -a $(echo ${RC_FILES}); \
+    fi \
+    #
+    # Install kubectl
+    && curl -sSL -o /usr/local/bin/kubectl https://storage.googleapis.com/kubernetes-release/release/$(curl -s https://storage.googleapis.com/kubernetes-release/release/stable.txt)/bin/linux/amd64/kubectl \
+    && chmod +x /usr/local/bin/kubectl \
+    #
+    # Install Helm
+    && curl -s https://raw.githubusercontent.com/helm/helm/master/scripts/get-helm-3 | bash - \
+    #
+    # Copy localhost's ~/.kube/config file into the container and swap out localhost
+    # for host.docker.internal whenever a new shell starts to keep them in sync.
+    && echo "${RC_SNIPPET}" | tee -a $(echo ${RC_FILES}) \
     #
     # Create a non-root user to use if preferred - see https://aka.ms/vscode-remote/containers/non-root-user.
     && groupadd --gid $USER_GID $USERNAME \

@@ -24,6 +24,23 @@ ARG CONDA_INSTALL_PATH=/opt/conda
 ENV PATH=${CONDA_INSTALL_PATH}/bin:${PATH}
 ENV LANG=C.UTF-8 LC_ALL=C.UTF-8
 
+# By default, only root can access the Docker socket 
+ARG ALIAS_DOCKER_WITH_SUDO=true
+
+# RC files to update with init scripts
+ARG RC_FILES="\
+    /root/.bashrc \
+    /home/${USERNAME}/.bashrc \
+    /root/.zshrc \
+    /home/${USERNAME}/.zshrc"
+
+ARG CONDA_INIT_SNIPPET="\
+    if [ \"\$(stat -c '%U' ${CONDA_INSTALL_PATH})\" != \"${USERNAME}\" ]; then \
+        sudo chown -R ${USERNAME}:root ${CONDA_INSTALL_PATH}; \
+    fi \
+    && . ${CONDA_INSTALL_PATH}/etc/profile.d/conda.sh \
+    && conda activate base"
+
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -44,6 +61,11 @@ RUN apt-get update \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
     #
+    # [Optional] Alias docker to be 'sudo docker' so it works cleanly with the non-root user
+    && if [ "${ALIAS_DOCKER_WITH_SUDO}" = "true" ]; then \
+        echo "alias docker='sudo docker'" | tee -a $(echo ${RC_FILES}); \
+    fi \
+    #
     # Set up Anaconda - adapted for Ubuntu from https://github.com/ContinuumIO/docker-images/blob/master/anaconda3/debian/Dockerfile
     # Use vscode user for the installation so that it can be used to manage the conda environment.
     && apt-get install -y bzip2 libglib2.0-0 libxext6 libsm6 libxrender1 gcc g++ \
@@ -55,14 +77,7 @@ RUN apt-get update \
     && rm /tmp/anaconda-install.sh \
     && ln -s ${CONDA_INSTALL_PATH}/etc/profile.d/conda.sh /etc/profile.d/conda.sh \
     # Add conda init to .bashrc/.zshrc, tweak ownership if UID was changed
-    && export SNIPPET="export PATH=\$PATH:\$HOME/.local/bin \
-        && if [ \"\$(stat -c '%U' ${CONDA_INSTALL_PATH})\" != \"${USERNAME}\" ]; then \
-            chown -R ${USERNAME}:root ${CONDA_INSTALL_PATH}; \
-        fi \
-        && . ${CONDA_INSTALL_PATH}/etc/profile.d/conda.sh \
-        && conda activate base" \
-    && echo "$SNIPPET" | tee -a /root/.bashrc >> /home/${USERNAME}/.bashrc \
-    && echo "$SNIPPET" | tee -a /root/.zshrc >> /home/${USERNAME}/.zshrc \
+    && echo "$CONDA_INIT_SNIPPET" | tee -a $(echo ${RC_FILES}) \
     && find ${CONDA_INSTALL_PATH}/ -follow -type f -name '*.a' -delete \
     && find ${CONDA_INSTALL_PATH}/ -follow -type f -name '*.js.map' -delete \
     && ${CONDA_INSTALL_PATH}/bin/conda clean -afy \

@@ -21,6 +21,16 @@ ENV NVM_DIR=/home/vscode/.nvm
 # [Optional] Install the Azure CLI
 ARG INSTALL_AZURE_CLI="false"
 
+# By default, only root can access the Docker socket 
+ARG ALIAS_DOCKER_WITH_SUDO=true
+
+# RC files to update with init scripts
+ARG RC_FILES="\
+    /root/.bashrc \
+    /home/${USERNAME}/.bashrc \
+    /root/.zshrc \
+    /home/${USERNAME}/.zshrc"
+
 # Avoid warnings by switching to noninteractive
 ENV DEBIAN_FRONTEND=noninteractive
 
@@ -40,6 +50,11 @@ RUN apt-get update \
     && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
+    #
+    # [Optional] Alias docker to be 'sudo docker' so it works cleanly with the non-root user
+    && if [ "${ALIAS_DOCKER_WITH_SUDO}" = "true" ]; then \
+        echo "alias docker='sudo docker'" | tee -a $(echo ${RC_FILES}); \
+    fi \
     #
     # Install Docker Compose
     && curl -sSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose \

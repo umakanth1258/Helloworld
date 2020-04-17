@@ -5,9 +5,6 @@
 
 FROM node:12
 
-# Avoid warnings by switching to noninteractive
-ENV DEBIAN_FRONTEND=noninteractive
-
 # The node image includes a non-root user with sudo access. Use the "remoteUser"
 # property in devcontainer.json to use it. On Linux, the container user's GID/UIDs
 # will be updated to match your local UID/GID (when using the dockerFile property).
@@ -18,6 +15,19 @@ ARG USER_GID=$USER_UID
 
 # Docker Compose version
 ARG COMPOSE_VERSION=1.24.0
+
+# By default, only root can access the Docker socket 
+ARG ALIAS_DOCKER_WITH_SUDO=true
+
+# RC files to update with init scripts
+ARG RC_FILES="\
+    /root/.bashrc \
+    /home/${USERNAME}/.bashrc \
+    /root/.zshrc \
+    /home/${USERNAME}/.zshrc"
+
+# Avoid warnings by switching to noninteractive
+ENV DEBIAN_FRONTEND=noninteractive
 
 # Configure apt and install packages
 RUN apt-get update \
@@ -32,6 +42,11 @@ RUN apt-get update \
     && add-apt-repository "deb [arch=amd64] https://download.docker.com/linux/$(lsb_release -is | tr '[:upper:]' '[:lower:]') $(lsb_release -cs) stable" \
     && apt-get update \
     && apt-get install -y docker-ce-cli \
+    #
+    # [Optional] Alias docker to be 'sudo docker' so it works cleanly with the non-root user
+    && if [ "${ALIAS_DOCKER_WITH_SUDO}" = "true" ]; then \
+        echo "alias docker='sudo docker'" | tee -a $(echo ${RC_FILES}); \
+    fi \
     #
     # Install Docker Compose
     && curl -sSL "https://github.com/docker/compose/releases/download/${COMPOSE_VERSION}/docker-compose-$(uname -s)-$(uname -m)" -o /usr/local/bin/docker-compose \

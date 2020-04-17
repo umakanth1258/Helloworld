@@ -47,10 +47,16 @@ RUN apt-get update \
     && apt-get -y install --no-install-recommends yarn \
     #
     # Set alternate global install location that both users have rights to access
-    && mkdir -p /usr/local/share/npm-global \
-    && chown ${USERNAME}:root /usr/local/share/npm-global \
-    && npm config -g set prefix /usr/local/share/npm-global \
-    && sudo -u ${USERNAME} npm config -g set prefix /usr/local/share/npm-global \
+    && mkdir -p ${NPM_GLOBAL_PATH} \
+    && chown ${USERNAME}:root ${NPM_GLOBAL_PATH} \
+    && npm config -g set prefix ${NPM_GLOBAL_PATH} \
+    && sudo -u ${USERNAME} npm config -g set prefix ${NPM_GLOBAL_PATH} \
+    # Add tweak ownership of global install location if UID was changed
+    && export SNIPPET="if [ \"\$(stat -c '%U' ${NPM_GLOBAL_PATH})\" != \"${USERNAME}\" ]; then \
+            sudo chown -R ${USERNAME}:root ${NPM_GLOBAL_PATH}; \
+        fi" \
+    && echo "${SNIPPET}" | tee -a /root/.bashrc >> /home/${USERNAME}/.bashrc \
+    && echo "${SNIPPET}" | tee -a /root/.zshrc >> /home/${USERNAME}/.zshrc \
     #
     # Tactically remove imagemagick due to https://security-tracker.debian.org/tracker/CVE-2019-10131
     # Can leave in Dockerfile once upstream base image moves to > 7.0.7-28.
